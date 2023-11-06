@@ -93,6 +93,61 @@ Resources:
             id=$(curl --silent --show-error --retry 3 -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/instance-id)
             aws ec2 modify-instance-metadata-options --instance-id $id --http-tokens required --http-endpoint enabled --region ${AWS::Region}
     Type: AWS::EC2::Instance
+      WebApp02:
+    Description: The installation and configuration commands this project will use to create instances that support this sample web application.
+    Properties:
+      CreditSpecification:
+        CPUCredits:
+          !If [IsBurstableInstanceType, unlimited, !Ref "AWS::NoValue"]
+      IamInstanceProfile: !Ref "WebAppInstanceProfile"
+      ImageId: "ami-0a6d9d2c4586d3ca0"
+      InstanceType: !Ref "InstanceType"
+      KeyName: !Ref "KeyPairName"
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref "WebAppSG"
+          SubnetId: !If
+            - UseSubnet
+            - !Ref "SubnetId"
+            - !Ref "AWS::NoValue"
+      Tags:
+        - Key: Environment
+          Value: !Sub "${ProjectId}-WebApp${Stage}"
+        - Key: Name
+          Value: !Sub "${ProjectId}-WebApp${Stage}"
+      LaunchTemplate:
+        LaunchTemplateId: !Ref "WebApp01LaunchTemplate"
+        Version: !GetAtt "WebApp01LaunchTemplate.LatestVersionNumber"
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash -ex
+            # Install Ruby
+            amazon-linux-extras install ruby2.6 -y
+
+            mkdir -p /home/ec2-user/.metadata
+            rm -f /home/ec2-user/.metadata/projectid
+            echo ${ProjectId} >> /home/ec2-user/.metadata/projectid
+
+            # Install the AWS CodeDeploy Agent
+            cd /home/ec2-user/
+            wget https://aws-codedeploy-${AWS::Region}.s3.amazonaws.com/releases/codedeploy-agent-1.4.0-2218.noarch.rpm
+            yum -y install codedeploy-agent-1.4.0-2218.noarch.rpm
+            # Install the Amazon CloudWatch Logs Agent
+            yum install -y awslogs-1.1.4
+            wget https://s3.amazonaws.com/aws-codedeploy-us-east-1/cloudwatch/codedeploy_logs.conf
+            mkdir -p /var/awslogs/etc/config
+            cp codedeploy_logs.conf /var/awslogs/etc/config/
+            sed -i 's/us-east-1/${AWS::Region}/g' /etc/awslogs/awscli.conf
+            # Start the service logs
+            sudo systemctl start awslogsd
+
+            token=$(curl --silent --show-error --retry 3 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+            id=$(curl --silent --show-error --retry 3 -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/instance-id)
+            aws ec2 modify-instance-metadata-options --instance-id $id --http-tokens required --http-endpoint enabled --region ${AWS::Region}
+    Type: AWS::EC2::Instance
   WebAppSG:
     Description: The default Amazon EC2 security group that will be created for the Amazon EC2 Linux instances.
     Type: AWS::EC2::SecurityGroup
