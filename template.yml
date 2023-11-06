@@ -93,7 +93,7 @@ Resources:
             id=$(curl --silent --show-error --retry 3 -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/instance-id)
             aws ec2 modify-instance-metadata-options --instance-id $id --http-tokens required --http-endpoint enabled --region ${AWS::Region}
     Type: AWS::EC2::Instance
-      WebApp02:
+  WebApp02:
     Description: The installation and configuration commands this project will use to create instances that support this sample web application.
     Properties:
       CreditSpecification:
